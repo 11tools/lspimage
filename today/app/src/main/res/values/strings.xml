@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">today</string>
+    <string name="activity_name">LSP看图</string>
+    <string name="lsp_show">LSP随机刷老婆\n看你刷出谁(/≥▽≤/) </string>
+</resources>
