@@ -22,11 +22,16 @@ import android.widget.TextView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.Target;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import butterknife.BindView;
@@ -52,6 +57,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     Context mContext;
     Bitmap todayBitmap;
     GifDrawable gifFromAssets;
+    List<Uri> mLsp = new ArrayList<Uri>();
 
 
     Handler mHandler = new Handler(){
@@ -73,26 +79,55 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         @Override
         public void run() {
             mHandler.sendEmptyMessage(LOAD_WAITING);
-            String path = getRedirectUrl("https://api.dujin.org/pic/");
-            Log.d(TAG,"load url = " + path);
-            try {
-                if(path != null) {
-                    todayBitmap = Glide.with(mContext)
-                            .load(Uri.parse(path))
-                            .asBitmap()
-                            .centerCrop()
-                            .into(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
-                            .get();
+            synchronized(mLsp) {
+                int allimage = mLsp.size();
+                if(allimage!=0) {
+                    int random = (int) (Math.random() * allimage);
+                    Log.d(TAG, "random = " + random);
+                    String randomurl = mLsp.get(random).toString();
+                    Log.d(TAG, "random url = " + randomurl);
+                    try {
+                        if (randomurl != null) {
+                            todayBitmap = Glide.with(mContext)
+                                    .load(Uri.parse(randomurl))
+                                    .asBitmap()
+                                    .centerCrop()
+                                    .into(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+                                    .get();
+                        }
+                        mHandler.sendEmptyMessage(LOAD_IMAGE);
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
-            mHandler.sendEmptyMessage(LOAD_IMAGE);
         }
     };
 
+    Runnable lsplistloader = new Runnable() {
+        @Override
+        public void run() {
+            getLSPImageList();
+        }
+    };
+
+    private void getLSPImageList() {
+        synchronized(mLsp) {
+            try {
+                URL url = new URL("https://raw.githubusercontent.com/11tools/lspimage/main/lsp.txt");
+                BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()));
+                String str;
+                while ((str = in.readLine()) != null) {
+                    Log.d(TAG, "get line " + str);
+                    mLsp.add(Uri.parse(str));
+                }
+                in.close();
+            } catch (IOException e) {
+            }
+        }
+    }
 
     private void loadResource(){
         try {
@@ -114,6 +149,8 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         mContext = this;
         loadResource();
         initUi();
+        Thread lspThread = new Thread(lsplistloader);
+        lspThread.start();
         Thread bitmapThread = new Thread(bitmaploader);
         bitmapThread.start();
         mPhotoView.setOnTouchListener((View.OnTouchListener)this);
